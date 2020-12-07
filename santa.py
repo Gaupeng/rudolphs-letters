@@ -1,6 +1,10 @@
+import json
 import pandas as pd
+import smtplib
 import sys
 
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from random import randint
 
 
@@ -15,18 +19,25 @@ class SantaException(Exception):
 class SantasElf:
     def __init__(self):
         clArgs = sys.argv
-        if len(clArgs) < 2:
+        if len(clArgs) < 5:
             raise SantaException()
-        self.dataFile = clArgs[1]
-        self._extractData()
+        dataFile = clArgs[1]
+        self._extractData(dataFile)
+        self.budget = clArgs[2]
+        self.date = clArgs[3]
+        self.location = clArgs[4]
 
-    def _extractData(self):
+    def _extractData(self, dataFile):
         """
-        Retrieve members and emails from datafile
+        Retrieve members and emails from `dataFile`
         """
-        _df = pd.read_csv(self.dataFile)
+        _df = pd.read_csv(dataFile)
         self.members = _df["Name"].tolist()
         self.emails = _df["Email"].tolist()
+        fh = open("details.json", "r")
+        jsonStuff = json.load(fh)
+        self.myEmail = jsonStuff["email"]
+        self.myPassword = jsonStuff["password"]
 
     def _randomPicks(self):
         """
@@ -50,7 +61,34 @@ class SantasElf:
                 return randomList
 
     def sendEmails(self):
-        self._randomPicks()
+        """
+        Sends emails to all participants informing them of their draw
+        """
+        degenerateList = self._randomPicks()
+        for num in degenerateList:
+            s = smtplib.SMTP("smtp.gmail.com", 587)
+            s.starttls()
+            s.login(self.myEmail, self.myPassword)
+            message = MIMEMultipart()
+            message["From"] = self.myEmail
+            message["To"] = self.emails[num]
+            message["Subject"] = "Secret Santa! 🎅🎄"
+            messageContent = f"""Hello there {self.members[num]}!
+
+As a part of this time's Secret Santa, you have been drawn:
+{self.members[degenerateList[num]]}
+
+The budget for this Secret Santa has been limited to {self.budget}.
+Gift exchange will be on {self.date} at {self.location}.
+
+Merry Christmas!
+🎅 ❄️ 🎁 🦌 ⛄ 👪 🎄
+"""
+
+            message.attach(MIMEText(messageContent, "plain"))
+            s.sendmail(self.myEmail, self.emails[num], message.as_string())
+            print("Sent Email To:", self.members[num])
+            s.quit()
 
 
 if __name__ == "__main__":
